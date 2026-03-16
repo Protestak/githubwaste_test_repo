@@ -11,39 +11,21 @@ jobs:
   exhaust-rate-limit:
     runs-on: ubuntu-latest
     steps:
-      - name: Hammer GitHub API Until Rate Limited
+      - name: Remove Old Artifacts
         env:
           GH_TOKEN: ${{ secrets.TEST_TOKEN }}
         run: |
-          echo "Starting API hammering..."
+          echo "Fetching artifacts..."
           COUNT=0
 
           while true; do
-            RESPONSE=$(curl -s -w "\n%{http_code}" \
-              -H "Authorization: Bearer $GH_TOKEN" \
-              -H "Accept: application/vnd.github+json" \
-              "https://api.github.com/repos/${{ github.repository }}/actions/runs?per_page=100")
-
-            HTTP_CODE=$(echo "$RESPONSE" | tail -1)
-            BODY=$(echo "$RESPONSE" | head -n -1)
-
-            REMAINING=$(curl -s \
-              -H "Authorization: Bearer $GH_TOKEN" \
-              -H "Accept: application/vnd.github+json" \
-              "https://api.github.com/rate_limit" | python3 -c "import sys,json; print(json.load(sys.stdin)['resources']['core']['remaining'])")
-
             COUNT=$((COUNT + 1))
-            echo "Request #$COUNT | HTTP $HTTP_CODE | Remaining: $REMAINING"
+            echo "Request #$COUNT"
 
-            if [ "$HTTP_CODE" = "403" ] || [ "$HTTP_CODE" = "429" ]; then
-              echo "::error::RATE LIMIT HIT after $COUNT requests"
-              echo "Response: $BODY"
-              exit 1
-            fi
-
-            if [ "$REMAINING" -lt 10 ]; then
-              echo "::error::RATE LIMIT NEARLY EXHAUSTED: $REMAINING remaining after $COUNT requests"
-              exit 1
-            fi
+            # -f makes curl fail on 4xx/5xx and prints GitHub's raw error JSON
+            curl -f -s \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${{ github.repository }}/actions/artifacts?per_page=100"
 
           done

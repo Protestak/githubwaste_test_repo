@@ -1,0 +1,18 @@
+name: test-reporter (flaky)
+
+on:
+  workflow_run:
+    workflows: ["main-ci"]
+    types: [completed] # fires on success, failure, AND cancellation
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    # ❌ no condition — crashes if main-ci was cancelled (no artifact exists)
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: test-results
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - run: echo "Report done"

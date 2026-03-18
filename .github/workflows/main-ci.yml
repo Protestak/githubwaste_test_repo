@@ -7,4 +7,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: echo "Running tests..."
-      - run: exit 1  # always fails — no artifact uploaded
+      - run: exit 1  

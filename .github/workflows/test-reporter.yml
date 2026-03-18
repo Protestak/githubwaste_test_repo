@@ -1,14 +1,13 @@
-name: test-reporter (flaky)
+name: test-reporter 
 
 on:
   workflow_run:
     workflows: ["main-ci"]
-    types: [completed] # fires on success, failure, AND cancellation
+    types: [completed] 
 
 jobs:
   report:
     runs-on: ubuntu-latest
-    # ❌ no condition — crashes if main-ci was cancelled (no artifact exists)
     steps:
       - uses: actions/download-artifact@v4
         with:

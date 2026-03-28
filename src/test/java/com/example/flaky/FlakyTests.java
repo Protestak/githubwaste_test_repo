@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * Verify: for i in {1..20}; do mvn test -Dtest=FlakyTestSuite -q 2>&1 | tail -1; done
  */
-public class FlakyTestSuite {
+public class FlakyTests {
 
     // ═══════════════════════════════════════════════════════════════
     // 1. RACE CONDITION — ~50% failure rate (verified)

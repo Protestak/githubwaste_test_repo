@@ -107,105 +107,105 @@ public class FlakyTests {
     //    Two threads race to set a shared result — winner is random.
     // ═══════════════════════════════════════════════════════════════
 
-    @Test
-    void testThreadFinishOrder() throws Exception {
-        // Two threads sleep random amounts and race to claim "winner".
-        // The OS scheduler determines who wakes up first.
-        String[] winner = {null};
-        Object lock = new Object();
+//     @Test
+//     void testThreadFinishOrder() throws Exception {
+//         // Two threads sleep random amounts and race to claim "winner".
+//         // The OS scheduler determines who wakes up first.
+//         String[] winner = {null};
+//         Object lock = new Object();
 
-        Runnable racer = () -> {
-            try {
-                Thread.sleep(ThreadLocalRandom.current().nextInt(5, 15));
-            } catch (InterruptedException ignored) {}
-            synchronized (lock) {
-                if (winner[0] == null) {
-                    winner[0] = Thread.currentThread().getName();
-                }
-            }
-        };
+//         Runnable racer = () -> {
+//             try {
+//                 Thread.sleep(ThreadLocalRandom.current().nextInt(5, 15));
+//             } catch (InterruptedException ignored) {}
+//             synchronized (lock) {
+//                 if (winner[0] == null) {
+//                     winner[0] = Thread.currentThread().getName();
+//                 }
+//             }
+//         };
 
-        Thread a = new Thread(racer, "thread-A");
-        Thread b = new Thread(racer, "thread-B");
-        a.start();
-        b.start();
-        a.join();
-        b.join();
+//         Thread a = new Thread(racer, "thread-A");
+//         Thread b = new Thread(racer, "thread-B");
+//         a.start();
+//         b.start();
+//         a.join();
+//         b.join();
 
-        // Asserts thread-A always wins — but ~50% of the time thread-B
-        // finishes first due to OS scheduling non-determinism.
-        assertEquals("thread-A", winner[0],
-            "Expected thread-A to win but " + winner[0] + " finished first");
-    }
-
-
-    // ═══════════════════════════════════════════════════════════════
-    // 5. NANOTIME SEEDING — ~50% failure rate (verified)
-    //    Low bits of System.nanoTime() are effectively random.
-    //    Tests that use nanoTime() for seeding or branching are flaky.
-    // ═══════════════════════════════════════════════════════════════
-
-    @Test
-    void testNanoTimeSeedDeterminism() {
-        // Some code uses System.nanoTime() to seed random generators
-        // or make branching decisions. The low-order bits are
-        // non-deterministic — they depend on exact CPU cycle count.
-        long seed = System.nanoTime();
-
-        // Simulate a test that uses nanoTime to pick a code path.
-        // Math.floorMod handles negative nanoTime correctly (always returns 0-99).
-        int partition = (int) Math.floorMod(seed, 100);
-        assertTrue(partition < 50,
-            "NanoTime seed " + seed + " routed to partition " + partition
-            + " (expected < 50). Low bits of nanoTime are non-deterministic.");
-    }
+//         // Asserts thread-A always wins — but ~50% of the time thread-B
+//         // finishes first due to OS scheduling non-determinism.
+//         assertEquals("thread-A", winner[0],
+//             "Expected thread-A to win but " + winner[0] + " finished first");
+//     }
 
 
-    // ═══════════════════════════════════════════════════════════════
-    // 6. GC PRESSURE — WeakReference may or may not be collected
-    // ═══════════════════════════════════════════════════════════════
+//     // ═══════════════════════════════════════════════════════════════
+//     // 5. NANOTIME SEEDING — ~50% failure rate (verified)
+//     //    Low bits of System.nanoTime() are effectively random.
+//     //    Tests that use nanoTime() for seeding or branching are flaky.
+//     // ═══════════════════════════════════════════════════════════════
 
-    @Test
-    void testWeakReferenceCaching() {
-        // WeakReferences are eligible for GC when no strong refs remain.
-        // System.gc() is a hint — the JVM may or may not collect.
-        java.lang.ref.WeakReference<byte[]> cache = new java.lang.ref.WeakReference<>(new byte[10 * 1024 * 1024]);
+//     @Test
+//     void testNanoTimeSeedDeterminism() {
+//         // Some code uses System.nanoTime() to seed random generators
+//         // or make branching decisions. The low-order bits are
+//         // non-deterministic — they depend on exact CPU cycle count.
+//         long seed = System.nanoTime();
 
-        // Allocate 50MB to pressure the GC
-        byte[][] pressure = new byte[50][];
-        for (int i = 0; i < pressure.length; i++) {
-            pressure[i] = new byte[1024 * 1024];
-        }
-
-        // Hint at GC — on resource-constrained CI, this is more likely to collect
-        System.gc();
-
-        assertNotNull(cache.get(),
-            "WeakReference was cleared by GC — common under CI memory pressure");
-    }
+//         // Simulate a test that uses nanoTime to pick a code path.
+//         // Math.floorMod handles negative nanoTime correctly (always returns 0-99).
+//         int partition = (int) Math.floorMod(seed, 100);
+//         assertTrue(partition < 50,
+//             "NanoTime seed " + seed + " routed to partition " + partition
+//             + " (expected < 50). Low bits of nanoTime are non-deterministic.");
+//     }
 
 
-    // ═══════════════════════════════════════════════════════════════
-    // 7. MESSAGE ARRIVAL TIMING — ~50% failure rate (verified)
-    //    Critical message may or may not arrive before the deadline.
-    // ═══════════════════════════════════════════════════════════════
+//     // ═══════════════════════════════════════════════════════════════
+//     // 6. GC PRESSURE — WeakReference may or may not be collected
+//     // ═══════════════════════════════════════════════════════════════
 
-    @Test
-    void testCriticalMessageArrival() throws Exception {
-        BlockingQueue<String> inbox = new LinkedBlockingQueue<>();
+//     @Test
+//     void testWeakReferenceCaching() {
+//         // WeakReferences are eligible for GC when no strong refs remain.
+//         // System.gc() is a hint — the JVM may or may not collect.
+//         java.lang.ref.WeakReference<byte[]> cache = new java.lang.ref.WeakReference<>(new byte[10 * 1024 * 1024]);
 
-        new Thread(() -> {
-            try {
-                // Sender: delay 20–80ms, centered on the 50ms deadline
-                Thread.sleep(ThreadLocalRandom.current().nextInt(20, 80));
-                inbox.put("critical-update");
-            } catch (InterruptedException ignored) {}
-        }).start();
+//         // Allocate 50MB to pressure the GC
+//         byte[][] pressure = new byte[50][];
+//         for (int i = 0; i < pressure.length; i++) {
+//             pressure[i] = new byte[1024 * 1024];
+//         }
 
-        // Receiver: 50ms deadline. Sender takes 20-80ms (uniform).
-        // P(arrive in time) = P(delay < 50) = (50-20)/(80-20) = 50%
-        String msg = inbox.poll(50, TimeUnit.MILLISECONDS);
-        assertNotNull(msg,
-            "Critical message did not arrive within 50ms deadline");
-    }
-}
+//         // Hint at GC — on resource-constrained CI, this is more likely to collect
+//         System.gc();
+
+//         assertNotNull(cache.get(),
+//             "WeakReference was cleared by GC — common under CI memory pressure");
+//     }
+
+
+//     // ═══════════════════════════════════════════════════════════════
+//     // 7. MESSAGE ARRIVAL TIMING — ~50% failure rate (verified)
+//     //    Critical message may or may not arrive before the deadline.
+//     // ═══════════════════════════════════════════════════════════════
+
+//     @Test
+//     void testCriticalMessageArrival() throws Exception {
+//         BlockingQueue<String> inbox = new LinkedBlockingQueue<>();
+
+//         new Thread(() -> {
+//             try {
+//                 // Sender: delay 20–80ms, centered on the 50ms deadline
+//                 Thread.sleep(ThreadLocalRandom.current().nextInt(20, 80));
+//                 inbox.put("critical-update");
+//             } catch (InterruptedException ignored) {}
+//         }).start();
+
+//         // Receiver: 50ms deadline. Sender takes 20-80ms (uniform).
+//         // P(arrive in time) = P(delay < 50) = (50-20)/(80-20) = 50%
+//         String msg = inbox.poll(50, TimeUnit.MILLISECONDS);
+//         assertNotNull(msg,
+//             "Critical message did not arrive within 50ms deadline");
+//     }
+// }
